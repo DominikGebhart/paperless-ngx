@@ -402,12 +402,34 @@ def get_mailbox(server, port, security) -> MailBox:
 
     if security == MailAccount.ImapSecurity.NONE:
         mailbox = MailBoxUnencrypted(server, port)
+
     elif security == MailAccount.ImapSecurity.STARTTLS:
         mailbox = MailBoxTls(server, port, ssl_context=ssl_context)
+
     elif security == MailAccount.ImapSecurity.SSL:
         mailbox = MailBox(server, port, ssl_context=ssl_context)
+
+    elif security == MailAccount.ImapSecurity.STARTTLS_NO_HOST_CHECK:
+        ssl_context.check_hostname = False
+        mailbox = MailBoxTls(server, port, ssl_context=ssl_context)
+
+    elif security == MailAccount.ImapSecurity.SSL_NO_HOST_CHECK:
+        ssl_context.check_hostname = False
+        mailbox = MailBox(server, port, ssl_context=ssl_context)
+
+    elif security == MailAccount.ImapSecurity.STARTTLS_ALLOW_INVALID_CERT:
+        ssl_context.check_hostname = False
+        ssl_context.verify_mode = ssl.CERT_NONE
+        mailbox = MailBoxTls(server, port, ssl_context=ssl_context)
+
+    elif security == MailAccount.ImapSecurity.SSL_ALLOW_INVALID_CERT:
+        ssl_context.check_hostname = False
+        ssl_context.verify_mode = ssl.CERT_NONE
+        mailbox = MailBox(server, port, ssl_context=ssl_context)
+
     else:
         raise NotImplementedError("Unknown IMAP security")  # pragma: no cover
+
     return mailbox
 
 

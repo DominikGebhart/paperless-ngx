@@ -11,6 +11,10 @@ const IMAP_SECURITY_OPTIONS = [
   { id: IMAPSecurity.None, name: $localize`No encryption` },
   { id: IMAPSecurity.SSL, name: $localize`SSL` },
   { id: IMAPSecurity.STARTTLS, name: $localize`STARTTLS` },
+  { id: IMAPSecurity.SSL_NO_HOST_CHECK, name: $localize`SSL_NO_HOST_CHECK` },
+  { id: IMAPSecurity.STARTTLS_NO_HOST_CHECK, name: $localize`STARTTLS_NO_HOST_CHECK` },
+  { id: IMAPSecurity.SSL_ALLOW_INVALID_CERT, name: $localize`SSL_ALLOW_INVALID_CERT` },
+  { id: IMAPSecurity.STARTTLS_ALLOW_INVALID_CERT, name: $localize`STARTTLS_ALLOW_INVALID_CERT` },
 ]
 
 @Component({

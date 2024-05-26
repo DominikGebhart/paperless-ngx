@@ -14,6 +14,10 @@ class MailAccount(document_models.ModelWithOwner):
         NONE = 1, _("No encryption")
         SSL = 2, _("Use SSL")
         STARTTLS = 3, _("Use STARTTLS")
+        SSL_NO_HOST_CHECK = 4, _("Use SSL, no host check")
+        STARTTLS_NO_HOST_CHECK = 5, _("Use STARTTLS, no host check")
+        SSL_ALLOW_INVALID_CERT = 6, _("Use SSL, allow invalid certificate")
+        STARTTLS_ALLOW_INVALID_CERT = 7, _("Use STARTTLS, allow invalid certificate")
 
     name = models.CharField(_("name"), max_length=256, unique=True)
 

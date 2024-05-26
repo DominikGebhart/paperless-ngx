@@ -4,6 +4,10 @@ export enum IMAPSecurity {
   None = 1,
   SSL = 2,
   STARTTLS = 3,
+  SSL_NO_HOST_CHECK = 4,
+  STARTTLS_NO_HOST_CHECK = 5, 
+  SSL_ALLOW_INVALID_CERT = 6,
+  STARTTLS_ALLOW_INVALID_CERT = 7, 
 }
 
 export interface MailAccount extends ObjectWithPermissions {

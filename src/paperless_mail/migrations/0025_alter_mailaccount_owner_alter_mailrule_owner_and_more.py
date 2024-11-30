@@ -9,7 +9,7 @@ from django.db import models
 class Migration(migrations.Migration):
     dependencies = [
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
-        ("paperless_mail", "0024_alter_mailrule_name_and_more"),
+        ("paperless_mail", "0999_mail_allow_invalid_certificate"),
     ]
 
     operations = [

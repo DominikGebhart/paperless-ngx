@@ -4,7 +4,8 @@ from django.db import models
 
 class Migration(migrations.Migration):
     dependencies = [
-        ("paperless_mail", "0023_remove_mailrule_filter_attachment_filename_and_more"),
+        ("paperless_mail", "0024_alter_mailrule_name_and_more"),
+
     ]
 
     operations = [

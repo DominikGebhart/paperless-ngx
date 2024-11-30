@@ -1,4 +1,4 @@
-import { HttpClientTestingModule } from '@angular/common/http/testing'
+import { provideHttpClientTesting } from '@angular/common/http/testing'
 import { ComponentFixture, TestBed } from '@angular/core/testing'
 import { FormsModule, ReactiveFormsModule } from '@angular/forms'
 import { NgbActiveModal, NgbModule } from '@ng-bootstrap/ng-bootstrap'
@@ -22,6 +22,7 @@ import { SwitchComponent } from '../../input/switch/switch.component'
 import { EditDialogMode } from '../edit-dialog.component'
 import {
   DOCUMENT_SOURCE_OPTIONS,
+  SCHEDULE_DATE_FIELD_OPTIONS,
   WORKFLOW_ACTION_OPTIONS,
   WORKFLOW_TYPE_OPTIONS,
   WorkflowEditDialogComponent,
@@ -39,6 +40,8 @@ import {
 } from 'src/app/data/workflow-action'
 import { MATCHING_ALGORITHMS, MATCH_AUTO } from 'src/app/data/matching-model'
 import { ConfirmButtonComponent } from '../../confirm-button/confirm-button.component'
+import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http'
+import { CustomFieldDataType } from 'src/app/data/custom-field'
 
 const workflow: Workflow = {
   name: 'Workflow 1',
@@ -88,6 +91,7 @@ describe('WorkflowEditDialogComponent', () => {
         SafeHtmlPipe,
         ConfirmButtonComponent,
       ],
+      imports: [FormsModule, ReactiveFormsModule, NgSelectModule, NgbModule],
       providers: [
         NgbActiveModal,
         {
@@ -146,17 +150,23 @@ describe('WorkflowEditDialogComponent', () => {
           useValue: {
             listAll: () =>
               of({
-                results: [],
+                results: [
+                  {
+                    id: 1,
+                    name: 'cf1',
+                    data_type: CustomFieldDataType.String,
+                  },
+                  {
+                    id: 2,
+                    name: 'cf2',
+                    data_type: CustomFieldDataType.Date,
+                  },
+                ],
               }),
           },
         },
-      ],
-      imports: [
-        HttpClientTestingModule,
-        FormsModule,
-        ReactiveFormsModule,
-        NgSelectModule,
-        NgbModule,
+        provideHttpClient(withInterceptorsFromDi()),
+        provideHttpClientTesting(),
       ],
     }).compileComponents()
 
@@ -189,7 +199,7 @@ describe('WorkflowEditDialogComponent', () => {
     expect(editTitleSpy).toHaveBeenCalled()
   })
 
-  it('should return source options, type options, type name', () => {
+  it('should return source options, type options, type name, schedule date field options', () => {
     // coverage
     expect(component.sourceOptions).toEqual(DOCUMENT_SOURCE_OPTIONS)
     expect(component.triggerTypeOptions).toEqual(WORKFLOW_TYPE_OPTIONS)
@@ -203,6 +213,9 @@ describe('WorkflowEditDialogComponent', () => {
       component.getActionTypeOptionName(WorkflowActionType.Assignment)
     ).toEqual('Assignment')
     expect(component.getActionTypeOptionName(null)).toEqual('')
+    expect(component.scheduleDateFieldOptions).toEqual(
+      SCHEDULE_DATE_FIELD_OPTIONS
+    )
   })
 
   it('should support add and remove triggers and actions', () => {

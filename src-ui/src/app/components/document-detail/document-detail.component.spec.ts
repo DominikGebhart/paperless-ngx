@@ -1,7 +1,7 @@
 import { DatePipe } from '@angular/common'
 import {
-  HttpClientTestingModule,
   HttpTestingController,
+  provideHttpClientTesting,
 } from '@angular/common/http/testing'
 import {
   ComponentFixture,
@@ -83,6 +83,9 @@ import { SplitConfirmDialogComponent } from '../common/confirm-dialog/split-conf
 import { DeletePagesConfirmDialogComponent } from '../common/confirm-dialog/delete-pages-confirm-dialog/delete-pages-confirm-dialog.component'
 import { PdfViewerModule } from 'ng2-pdf-viewer'
 import { DataType } from 'src/app/data/datatype'
+import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http'
+import { TagService } from 'src/app/services/rest/tag.service'
+import { TextAreaComponent } from '../common/input/textarea/textarea.component'
 
 const doc: Document = {
   id: 3,
@@ -181,9 +184,53 @@ describe('DocumentDetailComponent', () => {
         SplitConfirmDialogComponent,
         RotateConfirmDialogComponent,
         DeletePagesConfirmDialogComponent,
+        TextAreaComponent,
+      ],
+      imports: [
+        RouterModule.forRoot(routes),
+        NgbModule,
+        NgSelectModule,
+        FormsModule,
+        ReactiveFormsModule,
+        NgbModalModule,
+        NgxBootstrapIconsModule.pick(allIcons),
+        PdfViewerModule,
       ],
       providers: [
         DocumentTitlePipe,
+        {
+          provide: TagService,
+          useValue: {
+            listAll: () =>
+              of({
+                count: 3,
+                all: [41, 42, 43],
+                results: [
+                  {
+                    id: 41,
+                    name: 'Tag41',
+                    is_inbox_tag: true,
+                    color: '#ff0000',
+                    text_color: '#000000',
+                  },
+                  {
+                    id: 42,
+                    name: 'Tag42',
+                    is_inbox_tag: true,
+                    color: '#ff0000',
+                    text_color: '#000000',
+                  },
+                  {
+                    id: 43,
+                    name: 'Tag43',
+                    is_inbox_tag: true,
+                    color: '#ff0000',
+                    text_color: '#000000',
+                  },
+                ],
+              }),
+          },
+        },
         {
           provide: CorrespondentService,
           useValue: {
@@ -257,17 +304,8 @@ describe('DocumentDetailComponent', () => {
         PermissionsGuard,
         CustomDatePipe,
         DatePipe,
-      ],
-      imports: [
-        RouterModule.forRoot(routes),
-        HttpClientTestingModule,
-        NgbModule,
-        NgSelectModule,
-        FormsModule,
-        ReactiveFormsModule,
-        NgbModalModule,
-        NgxBootstrapIconsModule.pick(allIcons),
-        PdfViewerModule,
+        provideHttpClient(withInterceptorsFromDi()),
+        provideHttpClientTesting(),
       ],
     }).compileComponents()
 
@@ -652,7 +690,7 @@ describe('DocumentDetailComponent', () => {
     ])
   })
 
-  it('should support redo ocr, confirm and close modal after started', () => {
+  it('should support reprocess, confirm and close modal after started', () => {
     initNormally()
     const bulkEditSpy = jest.spyOn(documentService, 'bulkEdit')
     bulkEditSpy.mockReturnValue(of(true))
@@ -660,10 +698,10 @@ describe('DocumentDetailComponent', () => {
     modalService.activeInstances.subscribe((modal) => (openModal = modal[0]))
     const modalSpy = jest.spyOn(modalService, 'open')
     const toastSpy = jest.spyOn(toastService, 'showInfo')
-    component.redoOcr()
+    component.reprocess()
     const modalCloseSpy = jest.spyOn(openModal, 'close')
     openModal.componentInstance.confirmClicked.next()
-    expect(bulkEditSpy).toHaveBeenCalledWith([doc.id], 'redo_ocr', {})
+    expect(bulkEditSpy).toHaveBeenCalledWith([doc.id], 'reprocess', {})
     expect(modalSpy).toHaveBeenCalled()
     expect(toastSpy).toHaveBeenCalled()
     expect(modalCloseSpy).toHaveBeenCalled()
@@ -675,7 +713,7 @@ describe('DocumentDetailComponent', () => {
     let openModal: NgbModalRef
     modalService.activeInstances.subscribe((modal) => (openModal = modal[0]))
     const toastSpy = jest.spyOn(toastService, 'showError')
-    component.redoOcr()
+    component.reprocess()
     const modalCloseSpy = jest.spyOn(openModal, 'close')
     bulkEditSpy.mockReturnValue(throwError(() => new Error('error occurred')))
     openModal.componentInstance.confirmClicked.next()
@@ -735,6 +773,15 @@ describe('DocumentDetailComponent', () => {
     component.pdfPreviewLoaded({ numPages: 1000 } as any)
     expect(component.previewNumPages).toEqual(1000)
   })
+
+  it('should include delay of 300ms after previewloaded before showing pdf', fakeAsync(() => {
+    initNormally()
+    expect(component.previewLoaded).toBeFalsy()
+    component.pdfPreviewLoaded({ numPages: 1000 } as any)
+    expect(component.previewNumPages).toEqual(1000)
+    tick(300)
+    expect(component.previewLoaded).toBeTruthy()
+  }))
 
   it('should support zoom controls', () => {
     initNormally()
@@ -883,7 +930,7 @@ describe('DocumentDetailComponent', () => {
 
   it('should display built-in pdf viewer if not disabled', () => {
     initNormally()
-    component.metadata = { has_archive_version: true }
+    component.document.archived_file_name = 'file.pdf'
     jest.spyOn(settingsService, 'get').mockReturnValue(false)
     expect(component.useNativePdfViewer).toBeFalsy()
     fixture.detectChanges()
@@ -892,7 +939,7 @@ describe('DocumentDetailComponent', () => {
 
   it('should display native pdf viewer if enabled', () => {
     initNormally()
-    component.metadata = { has_archive_version: true }
+    component.document.archived_file_name = 'file.pdf'
     jest.spyOn(settingsService, 'get').mockReturnValue(true)
     expect(component.useNativePdfViewer).toBeTruthy()
     fixture.detectChanges()
@@ -989,10 +1036,10 @@ describe('DocumentDetailComponent', () => {
 
   it('should get suggestions', () => {
     const suggestionsSpy = jest.spyOn(documentService, 'getSuggestions')
-    suggestionsSpy.mockReturnValue(of({ tags: [1, 2] }))
+    suggestionsSpy.mockReturnValue(of({ tags: [42, 43] }))
     initNormally()
     expect(suggestionsSpy).toHaveBeenCalled()
-    expect(component.suggestions).toEqual({ tags: [1, 2] })
+    expect(component.suggestions).toEqual({ tags: [42, 43] })
   })
 
   it('should show error if needed for get suggestions', () => {
@@ -1034,8 +1081,8 @@ describe('DocumentDetailComponent', () => {
   })
 
   it('should change preview element by render type', () => {
-    component.metadata = { has_archive_version: true }
     initNormally()
+    component.document.archived_file_name = 'file.pdf'
     fixture.detectChanges()
     expect(component.archiveContentRenderType).toEqual(
       component.ContentRenderType.PDF
@@ -1044,10 +1091,8 @@ describe('DocumentDetailComponent', () => {
       fixture.debugElement.query(By.css('pdf-viewer-container'))
     ).not.toBeUndefined()
 
-    component.metadata = {
-      has_archive_version: false,
-      original_mime_type: 'text/plain',
-    }
+    component.document.archived_file_name = undefined
+    component.document.mime_type = 'text/plain'
     fixture.detectChanges()
     expect(component.archiveContentRenderType).toEqual(
       component.ContentRenderType.Text
@@ -1056,10 +1101,7 @@ describe('DocumentDetailComponent', () => {
       fixture.debugElement.query(By.css('div.preview-sticky'))
     ).not.toBeUndefined()
 
-    component.metadata = {
-      has_archive_version: false,
-      original_mime_type: 'image/jpg',
-    }
+    component.document.mime_type = 'image/jpeg'
     fixture.detectChanges()
     expect(component.archiveContentRenderType).toEqual(
       component.ContentRenderType.Image
@@ -1067,13 +1109,9 @@ describe('DocumentDetailComponent', () => {
     expect(
       fixture.debugElement.query(By.css('.preview-sticky img'))
     ).not.toBeUndefined()
-
-    component.metadata = {
-      has_archive_version: false,
-      original_mime_type:
-        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    }
-    fixture.detectChanges()
+    ;(component.document.mime_type =
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document'),
+      fixture.detectChanges()
     expect(component.archiveContentRenderType).toEqual(
       component.ContentRenderType.Other
     )
@@ -1099,7 +1137,7 @@ describe('DocumentDetailComponent', () => {
     expect(req.request.body).toEqual({
       documents: [doc.id],
       method: 'split',
-      parameters: { pages: '1-2,3-5' },
+      parameters: { pages: '1-2,3-5', delete_originals: false },
     })
     req.error(new ProgressEvent('failed'))
     modal.componentInstance.confirm()
@@ -1183,6 +1221,14 @@ describe('DocumentDetailComponent', () => {
     )
     expect(saveSpy).toHaveBeenCalled()
 
+    jest.spyOn(openDocumentsService, 'isDirty').mockReturnValue(true)
+    jest.spyOn(component, 'hasNext').mockReturnValue(true)
+    const saveNextSpy = jest.spyOn(component, 'saveEditNext')
+    document.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 's', ctrlKey: true, shiftKey: true })
+    )
+    expect(saveNextSpy).toHaveBeenCalled()
+
     const closeSpy = jest.spyOn(component, 'close')
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'escape' }))
     expect(closeSpy).toHaveBeenCalled()
@@ -1208,4 +1254,20 @@ describe('DocumentDetailComponent', () => {
     )
     fixture.detectChanges()
   }
+
+  it('createDisabled should return true if the user does not have permission to add the specified data type', () => {
+    currentUserCan = false
+    expect(component.createDisabled(DataType.Correspondent)).toBeTruthy()
+    expect(component.createDisabled(DataType.DocumentType)).toBeTruthy()
+    expect(component.createDisabled(DataType.StoragePath)).toBeTruthy()
+    expect(component.createDisabled(DataType.Tag)).toBeTruthy()
+  })
+
+  it('createDisabled should return false if the user has permission to add the specified data type', () => {
+    currentUserCan = true
+    expect(component.createDisabled(DataType.Correspondent)).toBeFalsy()
+    expect(component.createDisabled(DataType.DocumentType)).toBeFalsy()
+    expect(component.createDisabled(DataType.StoragePath)).toBeFalsy()
+    expect(component.createDisabled(DataType.Tag)).toBeFalsy()
+  })
 })

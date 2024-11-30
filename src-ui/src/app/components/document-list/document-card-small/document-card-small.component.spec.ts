@@ -1,11 +1,6 @@
 import { DatePipe } from '@angular/common'
-import { HttpClientTestingModule } from '@angular/common/http/testing'
-import {
-  ComponentFixture,
-  TestBed,
-  fakeAsync,
-  tick,
-} from '@angular/core/testing'
+import { provideHttpClientTesting } from '@angular/common/http/testing'
+import { ComponentFixture, TestBed } from '@angular/core/testing'
 import { RouterTestingModule } from '@angular/router/testing'
 import {
   NgbPopoverModule,
@@ -25,6 +20,7 @@ import { IsNumberPipe } from 'src/app/pipes/is-number.pipe'
 import { PreviewPopupComponent } from '../../common/preview-popup/preview-popup.component'
 import { NgxBootstrapIconsModule, allIcons } from 'ngx-bootstrap-icons'
 import { CustomFieldDisplayComponent } from '../../common/custom-field-display/custom-field-display.component'
+import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http'
 
 const doc = {
   id: 10,
@@ -33,6 +29,7 @@ const doc = {
   correspondent: 8,
   document_type: 10,
   storage_path: null,
+  page_count: 12,
   notes: [
     {
       id: 11,
@@ -70,14 +67,17 @@ describe('DocumentCardSmallComponent', () => {
         PreviewPopupComponent,
         CustomFieldDisplayComponent,
       ],
-      providers: [DatePipe],
       imports: [
-        HttpClientTestingModule,
         RouterTestingModule,
         NgbPopoverModule,
         NgbTooltipModule,
         NgbProgressbarModule,
         NgxBootstrapIconsModule.pick(allIcons),
+      ],
+      providers: [
+        DatePipe,
+        provideHttpClient(withInterceptorsFromDi()),
+        provideHttpClientTesting(),
       ],
     }).compileComponents()
 
@@ -85,6 +85,10 @@ describe('DocumentCardSmallComponent', () => {
     component = fixture.componentInstance
     component.document = Object.assign({}, doc)
     fixture.detectChanges()
+  })
+
+  it('should display page count', () => {
+    expect(fixture.nativeElement.textContent).toContain('12 pages')
   })
 
   it('should display a document, limit tags to 5', () => {
@@ -107,19 +111,4 @@ describe('DocumentCardSmallComponent', () => {
       fixture.debugElement.queryAll(By.directive(TagComponent))
     ).toHaveLength(6)
   })
-
-  it('should show preview on mouseover after delay to preload content', fakeAsync(() => {
-    component.mouseEnterPreview()
-    expect(component.popover.isOpen()).toBeTruthy()
-    expect(component.popoverHidden).toBeTruthy()
-    tick(600)
-    expect(component.popoverHidden).toBeFalsy()
-    component.mouseLeaveCard()
-
-    component.mouseEnterPreview()
-    tick(100)
-    component.mouseLeavePreview()
-    tick(600)
-    expect(component.popover.isOpen()).toBeFalsy()
-  }))
 })

@@ -10,14 +10,19 @@ import {
 } from '@angular/core'
 import { Meta } from '@angular/platform-browser'
 import { CookieService } from 'ngx-cookie-service'
-import { first, Observable, tap } from 'rxjs'
+import { catchError, first, Observable, of, tap } from 'rxjs'
 import {
   BRIGHTNESS,
   estimateBrightnessForColor,
   hexToHsl,
 } from 'src/app/utils/color'
 import { environment } from 'src/environments/environment'
-import { UiSettings, SETTINGS, SETTINGS_KEYS } from '../data/ui-settings'
+import {
+  UiSettings,
+  SETTINGS,
+  SETTINGS_KEYS,
+  PAPERLESS_GREEN_HEX,
+} from '../data/ui-settings'
 import { User } from '../data/user'
 import {
   PermissionAction,
@@ -144,6 +149,12 @@ const LANGUAGE_OPTIONS = [
     dateInputFormat: 'yyyy/mm/dd',
   },
   {
+    code: 'ko-kr',
+    name: $localize`Korean`,
+    englishName: 'Korean',
+    dateInputFormat: 'yyyy-mm-dd',
+  },
+  {
     code: 'lb-lu',
     name: $localize`Luxembourgish`,
     englishName: 'Luxembourgish',
@@ -268,7 +279,7 @@ export class SettingsService {
   public get allDisplayFields(): Array<{ id: DisplayField; name: string }> {
     return this._allDisplayFields
   }
-  public displayFieldsInitialized: boolean = false
+  public displayFieldsInit: EventEmitter<boolean> = new EventEmitter()
 
   constructor(
     rendererFactory: RendererFactory2,
@@ -288,6 +299,19 @@ export class SettingsService {
   public initializeSettings(): Observable<UiSettings> {
     return this.http.get<UiSettings>(this.baseUrl).pipe(
       first(),
+      catchError((error) => {
+        setTimeout(() => {
+          this.toastService.showError('Error loading settings', error)
+        }, 500)
+        return of({
+          settings: {
+            documentListSize: 10,
+            update_checking: { backend_setting: 'default' },
+          },
+          user: {},
+          permissions: [],
+        })
+      }),
       tap((uisettings) => {
         Object.assign(this.settings, uisettings.settings)
         if (this.get(SETTINGS_KEYS.APP_TITLE)?.length) {
@@ -326,6 +350,7 @@ export class SettingsService {
             DisplayField.CREATED,
             DisplayField.ADDED,
             DisplayField.ASN,
+            DisplayField.PAGE_COUNT,
             DisplayField.SHARED,
           ].includes(field.id)
         ) {
@@ -362,10 +387,10 @@ export class SettingsService {
             }
           })
         )
-        this.displayFieldsInitialized = true
+        this.displayFieldsInit.emit(true)
       })
     } else {
-      this.displayFieldsInitialized = true
+      this.displayFieldsInit.emit(true)
     }
   }
 
@@ -400,7 +425,7 @@ export class SettingsService {
       )
     }
 
-    if (themeColor) {
+    if (themeColor?.length) {
       const hsl = hexToHsl(themeColor)
       const bgBrightnessEstimate = estimateBrightnessForColor(themeColor)
 
@@ -425,6 +450,11 @@ export class SettingsService {
       document.documentElement.style.removeProperty('--pngx-primary')
       document.documentElement.style.removeProperty('--pngx-primary-lightness')
     }
+
+    this.meta.updateTag({
+      name: 'theme-color',
+      content: themeColor?.length ? themeColor : PAPERLESS_GREEN_HEX,
+    })
   }
 
   getLanguageOptions(): LanguageOption[] {

@@ -1,11 +1,6 @@
 import { DatePipe } from '@angular/common'
-import { HttpClientTestingModule } from '@angular/common/http/testing'
-import {
-  ComponentFixture,
-  TestBed,
-  fakeAsync,
-  tick,
-} from '@angular/core/testing'
+import { provideHttpClientTesting } from '@angular/common/http/testing'
+import { ComponentFixture, TestBed } from '@angular/core/testing'
 import { By } from '@angular/platform-browser'
 import { RouterTestingModule } from '@angular/router/testing'
 import {
@@ -22,6 +17,7 @@ import { IsNumberPipe } from 'src/app/pipes/is-number.pipe'
 import { PreviewPopupComponent } from '../../common/preview-popup/preview-popup.component'
 import { NgxBootstrapIconsModule, allIcons } from 'ngx-bootstrap-icons'
 import { CustomFieldDisplayComponent } from '../../common/custom-field-display/custom-field-display.component'
+import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http'
 
 const doc = {
   id: 10,
@@ -30,6 +26,7 @@ const doc = {
   correspondent: 8,
   document_type: 10,
   storage_path: null,
+  page_count: 8,
   notes: [
     {
       id: 11,
@@ -56,14 +53,17 @@ describe('DocumentCardLargeComponent', () => {
         PreviewPopupComponent,
         CustomFieldDisplayComponent,
       ],
-      providers: [DatePipe],
       imports: [
-        HttpClientTestingModule,
         RouterTestingModule,
         NgbPopoverModule,
         NgbTooltipModule,
         NgbProgressbarModule,
         NgxBootstrapIconsModule.pick(allIcons),
+      ],
+      providers: [
+        DatePipe,
+        provideHttpClient(withInterceptorsFromDi()),
+        provideHttpClientTesting(),
       ],
     }).compileComponents()
 
@@ -76,22 +76,8 @@ describe('DocumentCardLargeComponent', () => {
   it('should display a document', () => {
     expect(fixture.nativeElement.textContent).toContain('Document 10')
     expect(fixture.nativeElement.textContent).toContain('Cupcake ipsum')
+    expect(fixture.nativeElement.textContent).toContain('8 pages')
   })
-
-  it('should show preview on mouseover after delay to preload content', fakeAsync(() => {
-    component.mouseEnterPreview()
-    expect(component.popover.isOpen()).toBeTruthy()
-    expect(component.popoverHidden).toBeTruthy()
-    tick(600)
-    expect(component.popoverHidden).toBeFalsy()
-    component.mouseLeaveCard()
-
-    component.mouseEnterPreview()
-    tick(100)
-    component.mouseLeavePreview()
-    tick(600)
-    expect(component.popover.isOpen()).toBeFalsy()
-  }))
 
   it('should trim content', () => {
     expect(component.contentTrimmed).toHaveLength(503) // includes ...

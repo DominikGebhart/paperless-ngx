@@ -131,9 +131,11 @@ export class DocumentDetailComponent
   title: string
   titleSubject: Subject<string> = new Subject()
   previewUrl: string
+  thumbUrl: string
   previewText: string
   downloadUrl: string
   downloadOriginalUrl: string
+  previewLoaded: boolean = false
 
   correspondents: Correspondent[]
   documentTypes: DocumentType[]
@@ -221,15 +223,17 @@ export class DocumentDetailComponent
   }
 
   get archiveContentRenderType(): ContentRenderType {
-    return this.getRenderType(
-      this.metadata?.has_archive_version
-        ? 'application/pdf'
-        : this.metadata?.original_mime_type
-    )
+    return this.document?.archived_file_name
+      ? this.getRenderType('application/pdf')
+      : this.getRenderType(this.document?.mime_type)
   }
 
   get originalContentRenderType(): ContentRenderType {
-    return this.getRenderType(this.metadata?.original_mime_type)
+    return this.getRenderType(this.document?.mime_type)
+  }
+
+  get showThumbnailOverlay(): boolean {
+    return this.settings.get(SETTINGS_KEYS.DOCUMENT_EDITING_OVERLAY_THUMBNAIL)
   }
 
   private getRenderType(mimeType: string): ContentRenderType {
@@ -327,13 +331,8 @@ export class DocumentDetailComponent
         switchMap((paramMap) => {
           const documentId = +paramMap.get('id')
           this.docChangeNotifier.next(documentId)
-          return this.documentsService.get(documentId)
-        })
-      )
-      .pipe(
-        switchMap((doc) => {
-          this.documentId = doc.id
-          this.previewUrl = this.documentsService.getPreviewUrl(this.documentId)
+          // Dont wait to get the preview
+          this.previewUrl = this.documentsService.getPreviewUrl(documentId)
           this.http.get(this.previewUrl, { responseType: 'text' }).subscribe({
             next: (res) => {
               this.previewText = res.toString()
@@ -344,6 +343,13 @@ export class DocumentDetailComponent
               }`
             },
           })
+          this.thumbUrl = this.documentsService.getThumbUrl(documentId)
+          return this.documentsService.get(documentId)
+        })
+      )
+      .pipe(
+        switchMap((doc) => {
+          this.documentId = doc.id
           this.downloadUrl = this.documentsService.getDownloadUrl(
             this.documentId
           )
@@ -503,6 +509,16 @@ export class DocumentDetailComponent
       .subscribe(() => {
         if (this.openDocumentService.isDirty(this.document)) this.save()
       })
+
+    this.hotKeyService
+      .addShortcut({
+        keys: 'control.shift.s',
+        description: $localize`Save and close / next`,
+      })
+      .pipe(takeUntil(this.unsubscribeNotifier))
+      .subscribe(() => {
+        if (this.openDocumentService.isDirty(this.document)) this.saveEditNext()
+      })
   }
 
   ngOnDestroy(): void {
@@ -536,6 +552,9 @@ export class DocumentDetailComponent
       .subscribe({
         next: (result) => {
           this.metadata = result
+          if (this.archiveContentRenderType !== ContentRenderType.PDF) {
+            this.previewLoaded = true
+          }
         },
         error: (error) => {
           this.metadata = {} // allow display to fallback to <object> tag
@@ -651,6 +670,31 @@ export class DocumentDetailComponent
       })
   }
 
+  createDisabled(dataType: DataType) {
+    switch (dataType) {
+      case DataType.Correspondent:
+        return !this.permissionsService.currentUserCan(
+          PermissionAction.Add,
+          PermissionType.Correspondent
+        )
+      case DataType.DocumentType:
+        return !this.permissionsService.currentUserCan(
+          PermissionAction.Add,
+          PermissionType.DocumentType
+        )
+      case DataType.StoragePath:
+        return !this.permissionsService.currentUserCan(
+          PermissionAction.Add,
+          PermissionType.StoragePath
+        )
+      case DataType.Tag:
+        return !this.permissionsService.currentUserCan(
+          PermissionAction.Add,
+          PermissionType.Tag
+        )
+    }
+  }
+
   discard() {
     this.documentsService
       .get(this.documentId)
@@ -677,6 +721,7 @@ export class DocumentDetailComponent
 
   save(close: boolean = false) {
     this.networkActive = true
+    ;(document.activeElement as HTMLElement)?.dispatchEvent(new Event('change'))
     this.documentsService
       .update(this.document)
       .pipe(first())
@@ -684,7 +729,10 @@ export class DocumentDetailComponent
         next: (docValues) => {
           // in case data changed while saving eg removing inbox_tags
           this.documentForm.patchValue(docValues)
-          this.store.next(this.documentForm.value)
+          const newValues = Object.assign({}, this.documentForm.value)
+          newValues.tags = [...docValues.tags]
+          newValues.custom_fields = [...docValues.custom_fields]
+          this.store.next(newValues)
           this.openDocumentService.setDirty(this.document, false)
           this.openDocumentService.save()
           this.toastService.showInfo($localize`Document saved successfully.`)
@@ -773,11 +821,11 @@ export class DocumentDetailComponent
     let modal = this.modalService.open(ConfirmDialogComponent, {
       backdrop: 'static',
     })
-    modal.componentInstance.title = $localize`Confirm delete`
-    modal.componentInstance.messageBold = $localize`Do you really want to delete document "${this.document.title}"?`
-    modal.componentInstance.message = $localize`The files for this document will be deleted permanently. This operation cannot be undone.`
+    modal.componentInstance.title = $localize`Confirm`
+    modal.componentInstance.messageBold = $localize`Do you really want to move the document "${this.document.title}" to the trash?`
+    modal.componentInstance.message = $localize`Documents can be restored prior to permanent deletion.`
     modal.componentInstance.btnClass = 'btn-danger'
-    modal.componentInstance.btnCaption = $localize`Delete document`
+    modal.componentInstance.btnCaption = $localize`Move to trash`
     this.subscribeModalDelete(modal) // so can be re-subscribed if error
   }
 
@@ -812,23 +860,23 @@ export class DocumentDetailComponent
     ])
   }
 
-  redoOcr() {
+  reprocess() {
     let modal = this.modalService.open(ConfirmDialogComponent, {
       backdrop: 'static',
     })
-    modal.componentInstance.title = $localize`Redo OCR confirm`
-    modal.componentInstance.messageBold = $localize`This operation will permanently redo OCR for this document.`
-    modal.componentInstance.message = $localize`This operation cannot be undone.`
+    modal.componentInstance.title = $localize`Reprocess confirm`
+    modal.componentInstance.messageBold = $localize`This operation will permanently recreate the archive file for this document.`
+    modal.componentInstance.message = $localize`The archive file will be re-generated with the current settings.`
     modal.componentInstance.btnClass = 'btn-danger'
     modal.componentInstance.btnCaption = $localize`Proceed`
     modal.componentInstance.confirmClicked.subscribe(() => {
       modal.componentInstance.buttonsEnabled = false
       this.documentsService
-        .bulkEdit([this.document.id], 'redo_ocr', {})
+        .bulkEdit([this.document.id], 'reprocess', {})
         .subscribe({
           next: () => {
             this.toastService.showInfo(
-              $localize`Redo OCR operation will begin in the background. Close and re-open or reload this document after the operation has completed to see new content.`
+              $localize`Reprocess operation will begin in the background. Close and re-open or reload this document after the operation has completed to see new content.`
             )
             if (modal) {
               modal.close()
@@ -874,11 +922,15 @@ export class DocumentDetailComponent
   pdfPreviewLoaded(pdf: PDFDocumentProxy) {
     this.previewNumPages = pdf.numPages
     if (this.password) this.requiresPassword = false
+    setTimeout(() => {
+      this.previewLoaded = true
+    }, 300)
   }
 
   onError(event) {
     if (event.name == 'PasswordException') {
       this.requiresPassword = true
+      this.previewLoaded = true
     }
   }
 
@@ -994,10 +1046,14 @@ export class DocumentDetailComponent
     }
     return (
       !this.document ||
-      this.permissionsService.currentUserHasObjectPermissions(
+      (this.permissionsService.currentUserCan(
         PermissionAction.Change,
-        doc
-      )
+        PermissionType.Document
+      ) &&
+        this.permissionsService.currentUserHasObjectPermissions(
+          PermissionAction.Change,
+          doc
+        ))
     )
   }
 
@@ -1108,6 +1164,7 @@ export class DocumentDetailComponent
   splitDocument() {
     let modal = this.modalService.open(SplitConfirmDialogComponent, {
       backdrop: 'static',
+      size: 'lg',
     })
     modal.componentInstance.title = $localize`Split confirm`
     modal.componentInstance.messageBold = $localize`This operation will split the selected document(s) into new documents.`
@@ -1120,6 +1177,7 @@ export class DocumentDetailComponent
         this.documentsService
           .bulkEdit([this.document.id], 'split', {
             pages: modal.componentInstance.pagesString,
+            delete_originals: modal.componentInstance.deleteOriginal,
           })
           .pipe(first(), takeUntil(this.unsubscribeNotifier))
           .subscribe({
@@ -1145,6 +1203,7 @@ export class DocumentDetailComponent
   rotateDocument() {
     let modal = this.modalService.open(RotateConfirmDialogComponent, {
       backdrop: 'static',
+      size: 'lg',
     })
     modal.componentInstance.title = $localize`Rotate confirm`
     modal.componentInstance.messageBold = $localize`This operation will permanently rotate the original version of the current document.`
